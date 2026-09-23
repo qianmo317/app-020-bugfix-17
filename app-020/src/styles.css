@@ -138,12 +138,21 @@ input, select {
 .thumb { width: 44px; height: 33px; object-fit: cover; border-radius: 4px; border: 1px solid var(--line); }
 
 /* 竖向疏散 */
-.exitrow { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+.exitstack { position: relative; }
+.exitrow { display: flex; align-items: center; gap: 10px; margin: 8px 0; position: relative; }
 .exitlabel { width: 40px; font-weight: 600; text-align: right; }
 .exittrack { position: relative; flex: 1; height: 26px; background: #f2f4f6; border-radius: 6px; }
 .exitdot {
   position: absolute; top: 2px; transform: translateX(-50%);
   background: var(--green); color: #fff; font-size: 10px; padding: 2px 6px; border-radius: 4px;
+  white-space: nowrap; z-index: 1;
+}
+.exitempty { position: absolute; left: 8px; top: 5px; font-size: 11px; }
+/* 对齐线与各层轨道区域对齐：左侧让出楼层标签宽 40px + 间距 10px */
+.exitguides { position: absolute; top: 0; bottom: 0; left: 50px; right: 0; pointer-events: none; }
+.exitguide {
+  position: absolute; top: -2px; bottom: -2px; width: 0;
+  border-left: 1px dashed #9dbf9d; transform: translateX(-50%);
 }
 
 /* 规则页 */

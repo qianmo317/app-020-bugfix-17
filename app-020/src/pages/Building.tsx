@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import type { BuildingKind } from '../model';
+import type { BuildingKind, Facility, Pt } from '../model';
 import { addFloor, deleteFloor, updateBuilding, useStore } from '../store/store';
 import { floorLabel } from '../store/id';
+import { bboxOf } from '../lib/geometry';
 import { Link } from '../router';
 
 const KIND_LABELS: Record<BuildingKind, string> = {
@@ -19,12 +20,32 @@ export function BuildingPage({ buildingId }: { buildingId: string }) {
   if (!building) return <div className="page">建筑不存在。<Link to="/">返回首页</Link></div>;
   const bfs = building.floors.map((id) => floors[id]).filter(Boolean);
 
-  // 竖向疏散：把各层出口按 x 归一化位置画到同一张剖面上，直观看出共享楼梯
-  const exitMarks = bfs.map((f) => ({
-      floor: f,
-      exits: f.facilities
-        .map((x) => ({ code: x.code, pct: Math.min(100, Math.max(0, x.x / 400)) })),
-  }));
+  // 竖向疏散：各层图纸共用同一套毫米坐标，按整栋楼的水平范围统一归一化，
+  // 只画安全出口；同一部楼梯在各层的出口绝对 x 相同，归一化后落在同一条竖线上。
+  const exitByFloor = new Map<string, Facility[]>();
+  const refPolys: Pt[][] = [];
+  for (const f of bfs) {
+    const exits = f.facilities.filter((x) => x.kind === 'exit');
+    exitByFloor.set(f.id, exits);
+    for (const r of f.rooms) refPolys.push(r.polygon);
+    for (const e of exits) refPolys.push([{ x: e.x, y: e.y }]);
+  }
+
+  type ExitMark = { code: string; pct: number };
+  const GUIDE_TOL_PCT = 1; // 水平差 ≤1% 视为同一部楼梯，共用一条对齐线
+  const bb = refPolys.length > 0 ? bboxOf(refPolys) : null;
+  const span = bb && bb.maxX > bb.minX ? bb.maxX - bb.minX : 1;
+  const toPct = (x: number) => (bb ? ((x - bb.minX) / span) * 100 : 0);
+  let guides: number[] = [];
+  const exitMarks = bfs.map((floor) => {
+    const exits: ExitMark[] = (exitByFloor.get(floor.id) ?? []).map((e) => ({ code: e.code, pct: toPct(e.x) }));
+    // 全部楼层的出口统一归组：同一条楼梯在任一楼层出現都画出贯穿对齐线
+    for (const m of exits) {
+      if (!guides.some((g) => Math.abs(g - m.pct) <= GUIDE_TOL_PCT)) guides.push(m.pct);
+    }
+    return { floor, exits };
+  });
+  guides.sort((a, b) => a - b);
 
   return (
     <div className="page">
@@ -100,20 +121,28 @@ export function BuildingPage({ buildingId }: { buildingId: string }) {
       </table>
 
       <h2>竖向疏散（楼梯间）</h2>
-      <p className="hint">各层安全出口的水平位置对齐显示——上下位置接近的出口即共享竖向疏散楼梯。</p>
+      <p className="hint">横向按整栋楼统一比例显示各层安全出口——同一竖线上的出口即同一部竖向疏散楼梯。</p>
       <div className="section">
-        {exitMarks.map(({ floor, exits }) => (
-          <div key={floor.id} className="exitrow">
-            <span className="exitlabel">{floorLabel(floor.level)}</span>
-            <div className="exittrack">
-              {exits.map((e) => (
-                <span key={e.code} className="exitdot" style={{ left: `${e.pct}%` }} title={e.code}>
-                  EXIT
-                </span>
-              ))}
-            </div>
+        <div className="exitstack">
+          <div className="exitguides" aria-hidden>
+            {guides.map((pct) => (
+              <span key={pct} className="exitguide" style={{ left: `${pct}%` }} />
+            ))}
           </div>
-        ))}
+          {exitMarks.map(({ floor, exits }) => (
+            <div key={floor.id} className="exitrow">
+              <span className="exitlabel">{floorLabel(floor.level)}</span>
+              <div className="exittrack">
+                {exits.map((e) => (
+                  <span key={e.code} className="exitdot" style={{ left: `${e.pct}%` }} title={e.code}>
+                    EXIT
+                  </span>
+                ))}
+                {exits.length === 0 && <span className="hint exitempty">本层无安全出口</span>}
+              </div>
+            </div>
+          ))}
+        </div>
         {exitMarks.length === 0 && <span className="hint">无楼层</span>}
       </div>
     </div>
