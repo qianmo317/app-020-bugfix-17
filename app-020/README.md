@@ -7,7 +7,7 @@
 ```bash
 npm install
 npm run dev      # http://localhost:5173
-npm test         # vitest 单元测试（疏散距离/覆盖/规则/台账/性能）
+npm test         # vitest 单元测试（疏散距离/覆盖/规则/台账/编号/store/竖向剖面/性能）
 npm run build    # tsc 类型检查 + vite 构建到 dist/
 ```
 

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { BuildingKind } from '../model';
 import { addFloor, deleteFloor, updateBuilding, useStore } from '../store/store';
 import { floorLabel } from '../store/id';
+import { verticalSectionTracks } from '../lib/section';
 import { Link } from '../router';
 
 const KIND_LABELS: Record<BuildingKind, string> = {
@@ -19,12 +20,9 @@ export function BuildingPage({ buildingId }: { buildingId: string }) {
   if (!building) return <div className="page">建筑不存在。<Link to="/">返回首页</Link></div>;
   const bfs = building.floors.map((id) => floors[id]).filter(Boolean);
 
-  // 竖向疏散：把各层出口按 x 归一化位置画到同一张剖面上，直观看出共享楼梯
-  const exitMarks = bfs.map((f) => ({
-      floor: f,
-      exits: f.facilities
-        .map((x) => ({ code: x.code, pct: Math.min(100, Math.max(0, x.x / 400)) })),
-  }));
+  // 竖向疏散：各层安全出口按全楼统一水平参照画到同一轨道——
+  // 同一物理 x 落在同一竖线，上下对齐的出口即共享疏散楼梯；轨道上只画安全出口
+  const exitTracks = verticalSectionTracks(bfs);
 
   return (
     <div className="page">
@@ -100,11 +98,11 @@ export function BuildingPage({ buildingId }: { buildingId: string }) {
       </table>
 
       <h2>竖向疏散（楼梯间）</h2>
-      <p className="hint">各层安全出口的水平位置对齐显示——上下位置接近的出口即共享竖向疏散楼梯。</p>
+      <p className="hint">各层安全出口按全楼统一的水平位置对齐显示——落在同一竖线的出口即共享竖向疏散楼梯。</p>
       <div className="section">
-        {exitMarks.map(({ floor, exits }) => (
-          <div key={floor.id} className="exitrow">
-            <span className="exitlabel">{floorLabel(floor.level)}</span>
+        {exitTracks.map(({ floorId, level, exits }) => (
+          <div key={floorId} className="exitrow">
+            <span className="exitlabel">{floorLabel(level)}</span>
             <div className="exittrack">
               {exits.map((e) => (
                 <span key={e.code} className="exitdot" style={{ left: `${e.pct}%` }} title={e.code}>
@@ -114,7 +112,7 @@ export function BuildingPage({ buildingId }: { buildingId: string }) {
             </div>
           </div>
         ))}
-        {exitMarks.length === 0 && <span className="hint">无楼层</span>}
+        {exitTracks.length === 0 && <span className="hint">无楼层</span>}
       </div>
     </div>
   );

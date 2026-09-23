@@ -29,7 +29,7 @@
 8. **本地持久化**：结构数据存 localStorage（键 `fem.v1`），底图与照片存 IndexedDB（库 `fem-blobs`）；内置「载入示例」一键生成示例楼层。
 
 ## 5. 进阶功能
-- 竖向疏散剖面：`#/building/:id` 把各层安全出口按 x 位置归一化画到同一轨道，上下接近的出口即共享疏散楼梯。
+- 竖向疏散剖面：`#/building/:id` 把各层安全出口按**全楼统一的水平参照系**（各层房间顶点与出口 x 的并集范围）归一化画到同一轨道，同一物理 x 在每层落在同一竖线——上下对齐的出口即共享疏散楼梯；轨道上只画安全出口，宽度不同的楼层保持真实水平错位。
 - 全楼台账页：跨建筑、跨楼层按设施类型筛选，勾「只看待整改（过期/缺失/损坏）」，按下次应检日期排序，导出 CSV（带 BOM，Excel 直接打开）。
 - 未覆盖区域可视化：编辑器可把 0.5m 未覆盖栅格以红色方块直接叠在图纸上。
 - 保留但界面未开放的类型：喷淋（`sprinkler`）已参与台账与编号，尚未参与任何校验规则。
@@ -95,7 +95,7 @@ type ValidationResult = { checkedAt: string; pass: boolean; items: ValidationIte
 - 破坏性操作（删建筑、删楼层）都有 `confirm` 二次确认；顶栏常驻「数据仅存于本机浏览器 · 断网可用」。
 
 ## 10. 验收标准
-- 单元测试 **7 个文件 / 59 个用例**全部通过（vitest 2.1.9，`npm test`）：疏散距离 20 组、灭火器覆盖 10 组、检查台账 7 组、编号 6 组、store 回归 10 组、规则切换 4 组、性能 2 组。
+- 单元测试 **8 个文件 / 67 个用例**全部通过（vitest 2.1.9，`npm test`）：疏散距离 20 组、灭火器覆盖 10 组、检查台账 7 组、编号 6 组、store 回归 10 组、规则切换 4 组、竖向剖面 8 组、性能 2 组。
 - 疏散距离：20 组沿路径用例与手工沿路径测量的误差 < 0.5m；其中第 04 组必须证明「直线距离 ≤40m 看着合格、沿路径 >50m 实际超标」被判 `TRAVEL_EXCEED` 且 `pass=false`。
 - 灭火器覆盖：10 组未覆盖面积与人工核算（圆面积差集、条带面积）误差 ≤10%，且格心采样总面积与房间面积一致（20×20 房间 = 400㎡）。
 - 台账：过期项 **100%** 出现在校验结果中（L6 按 `facilityId` 对账，无遗漏也无多余）；`damaged`/`missing` 为 error 级且排在最前。
@@ -109,7 +109,7 @@ type ValidationResult = { checkedAt: string; pass: boolean; items: ValidationIte
 **已知实现边界**（README 声称与代码实情逐条核对）：
 - README 说 `.gitignore` 已排除 `underlays/`、`photos/`、`exports/`；实际 `.gitignore` 只有 `node_modules`、`dist`、`*.log`、`.DS_Store`、`.DS_Store?`，这三条都没有。由于底图与照片本来就只进 IndexedDB、导出走浏览器下载，不落盘也不会污染仓库，但该句描述与实现不符。
 - README 写运行镜像是 `nginx:1.27-alpine`，`Dockerfile` 实际用的是 `nginx:1.27-alpine-slim`（注释里解释了为把镜像压到验收线以下）。
-- README 的 `npm test` 说明只列了 5 类测试（疏散距离/覆盖/规则/台账/性能），实际还有 `tests/id.test.ts`（编号 6 例）与 `tests/store.test.ts`（store 回归 10 例）。
+- README 的 `npm test` 说明曾只列 5 类测试（疏散距离/覆盖/规则/台账/性能），实际还有 `tests/id.test.ts`（编号 6 例）、`tests/store.test.ts`（store 回归 10 例）与 `tests/section.test.ts`（竖向剖面 8 例）；README 已补全为完整列表。
 - 仓库内**没有** `e2e/` 目录与 `playwright.config.ts`，也没有端到端测试；浏览器阶段发现的两个 bug 只是就地固化成 vitest 用例（`tests/store.test.ts` 文件头注释说明了出处）。
 - `Floor.scaleMmPerUnit` 注释写「此值仅影响底图显示」（`src/model.ts`），但全仓库没有任何渲染或校验路径读它，只在 store 与测试里写入；底图缩放实际用的是 `underlay.scaleMmPerPx`。
 - `Floor.exits: string[]` 由 store 维护、也有测试断言，但校验引擎不读它（引擎直接过滤 `facilities` 里 `kind === 'exit'` 的项），是冗余派生字段。
@@ -128,7 +128,7 @@ type ValidationResult = { checkedAt: string; pass: boolean; items: ValidationIte
 
 ```bash
 cd app-020
-npm test                                  # 7 个文件 59 个用例
+npm test                                  # 8 个文件 67 个用例
 docker compose up -d --build
 curl http://localhost:8100/healthz        # 期望输出 ok
 docker compose down
